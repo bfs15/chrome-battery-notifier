@@ -132,6 +132,15 @@ function init(chrome, navigator) {
     chrome.notifications.clear(notificationId, function () {});
   });
 
+  chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
+    if (request.type == "setOptions") {
+      setOptions(request.options);
+    } else if (request.type == "getOptions") {
+      sendResponse(warnings);
+    }
+    return true;
+  });
+
   Warning.fromJsonObject = function(obj) {
     obj.trigger = Trigger.fromJsonObject(obj.trigger);
     return new Warning(obj);

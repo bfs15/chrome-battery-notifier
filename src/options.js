@@ -14,7 +14,7 @@ $(function() {
   var defaultOptions = {
     enabled: false,
     trigger: {
-      percent: 5,
+      percent: 15,
       timeUnit: null,
       timeAmount: null
     }
@@ -25,6 +25,9 @@ $(function() {
         index: 0,
         getOptions: function(index) {
           index = index || temp.index;
+          if (!temp.options) {
+            temp.options = [defaultOptions, defaultOptions, defaultOptions];
+          }
           if (index < temp.options.length) {
             return temp.options[index];
           } else {
@@ -44,8 +47,9 @@ $(function() {
 
   function loadOptions() {
     var options;
-    chrome.runtime.getBackgroundPage(function (monitor) {
-      temp.set(monitor.warnings);
+    
+    chrome.runtime.sendMessage({ type: "getOptions" }, function (response) {
+      temp.set(response);
       updateDom(temp.getOptions());
     });
   }
@@ -69,11 +73,9 @@ $(function() {
   function saveOptions() {
     temp.setCurrent();
     chrome.storage.local.set({'warnings': temp.getAllOptions()});
-    chrome.runtime.getBackgroundPage(function (monitor) {
-      monitor.setOptions(temp.getAllOptions());
-      console.log("Options saved.");
-      $save.prop('disabled', true);
-    });
+    chrome.runtime.sendMessage({type: "setOptions", options: temp.getAllOptions()});
+    console.log("Options saved.");
+    $save.prop('disabled', true);
   }
 
 

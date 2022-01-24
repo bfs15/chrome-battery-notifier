@@ -161,7 +161,7 @@ $(function() {
 
   $save.on('click', saveOptions);
 
-  $allOptions.on('click', updateSaveButton);
+  $allOptions.on('click mouseenter mouseleave keypress change select', updateSaveButton);
 
   loadOptions();
 });

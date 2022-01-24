@@ -113,7 +113,8 @@ function init(chrome, navigator) {
 
   Warning.prototype.showNotification = function(battery) {
     var percentage = Math.floor(battery.level * 100);
-
+    var myAudio = new Audio(chrome.runtime.getURL("assets/alert-bells-echo.wav"));
+    myAudio.play();
     chrome.notifications.create(
       "battery-notifier",
       {

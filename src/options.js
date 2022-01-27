@@ -46,8 +46,6 @@ $(function() {
       };
 
   function loadOptions() {
-    var options;
-    
     chrome.runtime.sendMessage({ type: "getOptions" }, function (response) {
       temp.set(response);
       updateDom(temp.getOptions());
@@ -72,9 +70,9 @@ $(function() {
 
   function saveOptions() {
     temp.setCurrent();
-    chrome.storage.local.set({'warnings': temp.getAllOptions()});
-    chrome.runtime.sendMessage({type: "setOptions", options: temp.getAllOptions()});
-    console.log("Options saved.");
+    chrome.runtime.sendMessage({type: "setOptions", options: temp.getAllOptions()}, function (response) {
+      console.log("Options saved.");
+    });
     $save.prop('disabled', true);
   }
 

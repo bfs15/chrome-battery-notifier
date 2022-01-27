@@ -14,17 +14,22 @@
 		"48": "assets/icon_48.png",
 		"128": "assets/icon_128.png"
 	},
+	"content_scripts": [
+		{
+			"matches": ["<all_urls>"],
+			"js": ["content-script.js"]
+		}
+	],
 	"permissions": ["notifications", "storage"],
 	"options_page": "options.html",
 	"options_ui": {
 		"scripts": ["jquery-2.1.3.min.js"],
 		"page": "options.html"
-	}
-	// "web_accessible_resources": [
-	// 	{
-	// 		"resources": ["assets/alert-bells-echo.wav"],
-	// 		"matches": ["MATCH_PATTERNS"],
-	// 		"extension_ids": ["EXTENSION_IDS"]
-	// 	}
-	// ]
+	},
+	"web_accessible_resources": [
+		{
+			"resources": ["assets/alert-bells-echo.wav"],
+			"matches": ["<all_urls>"]
+		}
+	]
 }

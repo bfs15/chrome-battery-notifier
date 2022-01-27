@@ -58,13 +58,13 @@ var Trigger = function(_percent, _timeAmount, _timeUnit) {
 
 Trigger.prototype.check = function(battery) {
   if (this.percent !== null) {
-    if(this.percent > Math.ceil(battery.level * 100)) {
+    if(this.percent >= Math.ceil(battery.level * 100)) {
       return true;
     }
   }
 
   if (this.time() !== null) {
-    if (this.time() > battery.dischargingTime) {
+    if (this.time() >= battery.dischargingTime) {
       return true;
     }
   }
@@ -89,32 +89,42 @@ Trigger.fromJsonObject = function(obj) {
 /**
  * Warnings
  */
-var Warning = function(options) {
+var Warning = function(options, show=false) {
   options = options || {};
 
   this.enabled = ('enabled' in options) ? options.enabled : true;
   this.trigger = ('trigger' in options) ? options.trigger : new Trigger(5);
 
-  this.shown = false;
+  this.shown = ('shown' in options) ? options.shown : false;
+  this.shown = this.shown && !show; // Force not shown if show is true
+};
+
+Warning.fromJsonObject = function(obj, show=false) {
+  obj.trigger = Trigger.fromJsonObject(obj.trigger);
+  return new Warning(obj, show);
 };
 
 Warning.prototype.checkBattery = function(battery) {
 
   var isTriggered = this.trigger.check(battery);
-
+  
+  var triggered = false;
   if (this.enabled) {
-  if (!battery.charging) {
-  if (!this.shown && isTriggered) {
-    this.showNotification(battery);
-  }}}
+    if (!battery.charging) {
+      if (!this.shown && isTriggered) {
+        triggered = true;
+        this.showNotification(battery);
+      }
+    }
+  }
 
-  this.shown = isTriggered;
+  this.shown = isTriggered && !battery.charging;
+  
+  return triggered;
 };
 
 Warning.prototype.showNotification = function(battery) {
   var percentage = Math.floor(battery.level * 100);
-  var myAudio = new Audio(chrome.runtime.getURL("assets/alert-bells-echo.wav"));
-  myAudio.play();
   chrome.notifications.create(
     "battery-notifier",
     {
@@ -129,47 +139,31 @@ Warning.prototype.showNotification = function(battery) {
   );
 };
 
-chrome.notifications.onClicked.addListener(function (notificationId) {
-  chrome.notifications.clear(notificationId, function () {});
-});
 
-chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
-  if (request.type == "setOptions") {
-    setOptions(request.options);
-  } else if (request.type == "getOptions") {
-    sendResponse(warnings);
-  }
-  return true;
-});
-
-Warning.fromJsonObject = function(obj) {
-  obj.trigger = Trigger.fromJsonObject(obj.trigger);
-  return new Warning(obj);
-};
-
-
-var warnings = [
-  new Warning({})
-];
-
-var setOptions = function(json) {
+var setOptions = function(json, show=false) {
   warnings = json.map(function (obj) {
-    return Warning.fromJsonObject(obj);
+    return Warning.fromJsonObject(obj, show);
   });
+  saveOptions();
   console.log("Options set.");
 };
 
-function loadFromStorage() {
+async function loadFromStorage(show = false) {
   var storeKey = "warnings";
   try {
-    chrome.storage.local.get(storeKey, function(results) {
-      if (results[storeKey]) {
-        var json = results[storeKey];
-        setOptions(json);
-        console.log(warnings.length + " settings loaded from local storage.");
-      }  else {
-        console.log("No settings found.");
-      }
+    return new Promise((resolve, reject) => {
+
+      chrome.storage.local.get(storeKey, function (results) {
+        if (results[storeKey]) {
+          var json = results[storeKey];
+          setOptions(json, show);
+          console.log(warnings.length + " settings loaded from local storage.", warnings);
+          resolve();
+        } else {
+          console.log("No settings found.");
+        }
+        resolve();
+      });
     });
   }
   catch (err) {
@@ -180,18 +174,59 @@ function loadFromStorage() {
 }
 
 
-/* See https://developer.mozilla.org/en-US/docs/Web/API/Battery_Status_API */
-navigator.getBattery().then(function(battery){
+function saveOptions() {
+  console.log("saveOptions");
+  chrome.storage.local.set({ 'warnings': warnings });
+}
 
-  loadFromStorage();
-
-  battery.addEventListener('levelchange', function() {
-    warnings.forEach(function (warning) {
-      warning.checkBattery(battery);
-    });
-  });
-
-}, function() {
-  console.log("no battery found");
+chrome.notifications.onClicked.addListener(function (notificationId) {
+  chrome.notifications.clear(notificationId, function () {});
 });
 
+
+chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
+  console.log("request", request);
+  if (request.type == "setOptions") {
+    setOptions(request.options, true);
+  } else if (request.type == "getOptions") {
+    Promise.all([loadFromStorage()]).then(() => {
+      sendResponse(warnings);
+    });
+  } else if (request.type == "check") {
+    Promise.all([loadFromStorage()]).then(() => {
+      var battery = request.battery;
+      var triggered = false;
+      warnings.forEach(function (warning) {
+        triggered = triggered || warning.checkBattery(battery);
+      });
+      saveOptions();
+      if (triggered) {
+        sendResponse(chrome.runtime.getURL("assets/alert-bells-echo.wav"));
+      } else {
+        sendResponse(false);
+      }
+    });
+  }
+  return true;
+});
+
+//
+
+var warnings = [
+  new Warning({})
+];
+
+chrome.runtime.onStartup.addListener(function() {
+  loadFromStorage(true);
+  saveOptions();
+})
+
+
+// chrome.windows.create({
+//   url: "https://www.google.com/",
+//   focused: false,
+// }, function (win) {
+//   win.id
+//   // win represents the Window object from windows API
+//   // Do something after opening
+// });

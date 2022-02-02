@@ -140,25 +140,27 @@ Warning.prototype.showNotification = function(battery) {
 };
 
 
-var setOptions = function(json, show=false) {
-  warnings = json.map(function (obj) {
+var setSettings = function (json, show = false) {
+  console.log("setSettings", json);
+  settings = json;
+  settings.notifications = json.notifications.map(function (obj) {
     return Warning.fromJsonObject(obj, show);
   });
-  saveOptions();
-  console.log("Options set.");
+  setBrowserAlarm(settings.alarm);
+
+  saveSettings();
+  console.log("Settings set.");
 };
 
 async function loadFromStorage(show = false) {
-  var storeKey = "warnings";
   try {
     return new Promise((resolve, reject) => {
 
       chrome.storage.local.get(storeKey, function (results) {
         if (results[storeKey]) {
           var json = results[storeKey];
-          setOptions(json, show);
-          console.log(warnings.length + " settings loaded from local storage.", warnings);
-          resolve();
+          setSettings(json, show);
+          console.log(settings.notifications.length + " settings loaded from local storage.", settings);
         } else {
           console.log("No settings found.");
         }
@@ -174,9 +176,9 @@ async function loadFromStorage(show = false) {
 }
 
 
-function saveOptions() {
-  console.log("saveOptions");
-  chrome.storage.local.set({ 'warnings': warnings });
+function saveSettings() {
+  console.log("saveSettings", settings);
+  chrome.storage.local.set({ 'settings': settings });
 }
 
 chrome.notifications.onClicked.addListener(function (notificationId) {
@@ -186,22 +188,25 @@ chrome.notifications.onClicked.addListener(function (notificationId) {
 
 chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
   console.log("request", request);
-  if (request.type == "setOptions") {
-    setOptions(request.options, true);
-  } else if (request.type == "getOptions") {
+  if (request.type == "setSettings") {
+    setSettings(request.settings, true);
+  } else if (request.type == "getSettings") {
     Promise.all([loadFromStorage()]).then(() => {
-      sendResponse(warnings);
+      sendResponse(settings);
     });
   } else if (request.type == "check") {
     Promise.all([loadFromStorage()]).then(() => {
       var battery = request.battery;
       var triggered = false;
-      warnings.forEach(function (warning) {
+      settings.notifications.forEach(function (warning) {
         triggered = triggered || warning.checkBattery(battery);
       });
-      saveOptions();
+      saveSettings();
       if (triggered) {
-        sendResponse(chrome.runtime.getURL("assets/alert-bells-echo.wav"));
+        var percentage = Math.floor(battery.level * 100);
+        playSound(percentage + "% left");
+        // sendResponse(chrome.runtime.getURL("assets/alert-bells-echo.wav"));
+        sendResponse(false);
       } else {
         sendResponse(false);
       }
@@ -212,21 +217,95 @@ chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
 
 //
 
-var warnings = [
-  new Warning({})
-];
+const storeKey = "settings";
+var settings = {
+  notifications: [
+    new Warning({})
+  ],
+  alarm: {
+    period: 3,
+  }
+};
+
 
 chrome.runtime.onStartup.addListener(function() {
   loadFromStorage(true);
-  saveOptions();
+  saveSettings();
 })
 
 
-// chrome.windows.create({
-//   url: "https://www.google.com/",
-//   focused: false,
-// }, function (win) {
-//   win.id
-//   // win represents the Window object from windows API
-//   // Do something after opening
-// });
+// https://stackoverflow.com/questions/67437180/play-audio-from-background-script-in-chrome-extention-manifest-v3
+function playSound(battery_info) {
+    let url = chrome.runtime.getURL('audio.html');
+    // set this string dynamically in your code, this is just an example
+    // this will play success.wav at half the volume and close the popup after a second  
+    url += '?volume=1.0&src=assets/alert-bells-echo.wav&length=2500';
+    if (battery_info) {
+      url += '&battery_info=' + battery_info;
+    }
+
+  chrome.windows.create({
+    type: 'popup',
+    focused: false,
+    top: 0,
+    left: 0,
+    height: 100,
+    width: 350,
+    // state: 'minimized',
+    url
+  })
+  // .then(function (window) {
+  //   chrome.windows.update(window.id, {
+  //     height: 100,
+  //     width: 350,
+  //   })
+  // });
+}
+
+function checkPopup() {
+  let url = chrome.runtime.getURL('check.html');
+  chrome.windows.create({
+    type: 'popup',
+    focused: false,
+    top: 0,
+    left: 0,
+    height: 1,
+    width: 1,
+    url
+  })
+  .then(function (window) {
+    chrome.windows.update(window.id, {
+      state: "minimized",
+    })
+  });
+}
+
+// chrome.alarms.create({ periodInMinutes: 1 });
+
+function setBrowserAlarm(alarm) {
+  chrome.alarms.clear('periodic', cleared => {
+    console.log("Alarm: cleared.");
+    chrome.alarms.get('periodic', a => {
+      console.log("previous alarm", a);
+      if (!a) {
+        console.log("Alarm: create", alarm);
+        chrome.alarms.create('periodic', { periodInMinutes: alarm.period })
+      };
+    });
+
+  });
+}
+
+
+chrome.storage.local.get(storeKey, function (results) {
+  if (results[storeKey]) {
+    var json = results[storeKey];
+    settings.alarm = json.alarm;
+    console.log("Alarm: settings loaded from local storage.", settings.alarm, "json.alarm", json.alarm);
+  }
+  setBrowserAlarm(settings.alarm);
+});
+
+chrome.alarms.onAlarm.addListener(() => {
+  checkPopup();
+});

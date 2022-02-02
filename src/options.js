@@ -9,6 +9,7 @@ $(function() {
       $timeArg = $('.time-arg'),
       $timeAmount = $timeArg.find('input[name=timeArgAmount]'),
       $timeUnit = $timeArg.find('select[name=timeArgUnit]'),
+      $alarmPeriod = $('.alarm-period-arg'),
       $save = $('#save');
 
   var defaultOptions = {
@@ -21,34 +22,69 @@ $(function() {
   };
 
   var temp = {
-        options: [defaultOptions, defaultOptions, defaultOptions],
-        index: 0,
-        getOptions: function(index) {
-          index = index || temp.index;
-          if (!temp.options) {
-            temp.options = [defaultOptions, defaultOptions, defaultOptions];
-          }
-          if (index < temp.options.length) {
-            return temp.options[index];
-          } else {
-            return defaultOptions;
-          }
-        },
-        getAllOptions: function() {
-          return [temp.getOptions(0), temp.getOptions(1), temp.getOptions(2)];
-        },
-        set: function(options) {
-          temp.options = options;
-        },
-        setCurrent: function() {
-          temp.options[temp.index] = currentInput();
-        }
-      };
+    settings: {
+      notifications: [defaultOptions, defaultOptions, defaultOptions],
+      alarm: {
+        period: 3
+      },
+    },
+    index: 0,
+    
+    getNotification: function(index) {
+      if (!temp.settings.notifications) {
+        temp.settings.notifications = [defaultOptions, defaultOptions, defaultOptions];
+      }
+      if (index < temp.settings.notifications.length) {
+        return temp.settings.notifications[index];
+      } else {
+        return defaultOptions;
+      }
+    },
+    getNotificationCurr: function() {
+      index = temp.index;
+      if (!temp.settings.notifications) {
+        temp.settings.notifications = [defaultOptions, defaultOptions, defaultOptions];
+      }
+      if (index < temp.settings.notifications.length) {
+        return temp.settings.notifications[index];
+      } else {
+        return defaultOptions;
+      }
+    },
+    getSettings: function() {
+      if (!temp.settings) {
+        temp.settings = {
+          notifications: [defaultOptions, defaultOptions, defaultOptions],
+          alarm: {
+            period: 3
+          },
+        };
+      }
+      if (!temp.settings.notifications) {
+        temp.settings.notifications = [defaultOptions, defaultOptions, defaultOptions];
+      }
+      return temp.settings;
+    },
+    getAllSettings: function () {
+      temp.getSettings();
+      return temp.settings;
+    },
+    set: function(options) {
+      temp.settings = options;
+      console.log("temp.set", "options=", options, "temp=", temp)
+    },
+    setCurrent: function () {
+      console.log("set option index", temp.index, temp);
+      temp.settings.notifications[temp.index] = currentInput();
+    }
+  };
 
-  function loadOptions() {
-    chrome.runtime.sendMessage({ type: "getOptions" }, function (response) {
+  function loadSettings() {
+    console.log("loadSettings");
+    chrome.runtime.sendMessage({ type: "getSettings" }, function (response) {
+      console.log("> loadSettings response", response);
       temp.set(response);
-      updateDom(temp.getOptions());
+      updateDom();
     });
   }
 
@@ -65,38 +101,36 @@ $(function() {
       current.trigger.timeAmount = null;
       current.trigger.timeUnit = null;
     }
+    temp.settings.alarm.period = parseInt($alarmPeriod.find('input').val());
     return current;
   }
 
-  function saveOptions() {
+  function saveSettings() {
     temp.setCurrent();
-    chrome.runtime.sendMessage({type: "setOptions", options: temp.getAllOptions()}, function (response) {
-      console.log("Options saved.");
+    chrome.runtime.sendMessage({type: "setSettings", settings: temp.getAllSettings()}, function (response) {
+      console.log("Settings saved.");
     });
     $save.prop('disabled', true);
   }
 
 
   function changeSelect() {
-    temp.setCurrent();
     $allOptions.fadeOut(150, function() {
       temp.index = $select.val();
-      updateDom(temp.getOptions());
+      updateDom();
       $allOptions.fadeIn(400);
     });
   }
 
 
-  function updateDom(options) {
-    if (typeof options === "undefined") {
-      options = defaultOptions;
-    }
+  function updateDom() {
+    var notification = temp.getNotificationCurr();
 
-    var triggerType = (options.trigger.percent !== null) ? 'percent' : 'time';
+    var triggerType = (notification.trigger.percent !== null) ? 'percent' : 'time';
 
-    $enabled.prop('checked', options.enabled);
+    $enabled.prop('checked', notification.enabled);
     $typeRadios.find('*[value=' + triggerType + ']').prop('checked', true);
-    updateTypeDom(options);
+    updateTypeDom(notification);
     updateEnabledDom();
   }
 
@@ -113,7 +147,7 @@ $(function() {
   }
 
   function updateTypeDom(warning) {
-
+    console.log("updateTypeDom", warning, "temp", temp);
     if ( ! isTimeType() ) {
       $percentArg.show();
       $timeArg.hide();
@@ -128,12 +162,13 @@ $(function() {
         $timeUnit.val(warning.trigger.timeUnit);
       }
     }
+    $alarmPeriod.find('input').val(temp.settings.alarm.period);
   }
 
   function updateSaveButton() {
     if (!$save.is(':enabled')) {
       var current = currentInput(),
-          saved = temp.getOptions();
+        saved = temp.getSettings();
 
       var areSame =
         current.enabled === saved.enabled &&
@@ -157,9 +192,9 @@ $(function() {
     updateTypeDom(currentInput());
   });
 
-  $save.on('click', saveOptions);
+  $save.on('click', saveSettings);
 
   $allOptions.on('click mouseenter mouseleave keypress change select', updateSaveButton);
 
-  loadOptions();
+  loadSettings();
 });

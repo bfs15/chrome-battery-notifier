@@ -20,7 +20,7 @@
 			"js": ["content-script.js"]
 		}
 	],
-	"permissions": ["notifications", "storage"],
+	"permissions": ["notifications", "storage", "alarms"],
 	"options_page": "options.html",
 	"options_ui": {
 		"scripts": ["jquery-2.1.3.min.js"],

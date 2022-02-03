@@ -228,12 +228,6 @@ var settings = {
 };
 
 
-chrome.runtime.onStartup.addListener(function() {
-  loadFromStorage(true);
-  saveSettings();
-})
-
-
 // https://stackoverflow.com/questions/67437180/play-audio-from-background-script-in-chrome-extention-manifest-v3
 function playSound(battery_info) {
     let url = chrome.runtime.getURL('audio.html');
@@ -251,13 +245,11 @@ function playSound(battery_info) {
     left: 0,
     height: 100,
     width: 350,
-    // state: 'minimized',
     url
   })
   // .then(function (window) {
   //   chrome.windows.update(window.id, {
-  //     height: 100,
-  //     width: 350,
+  //     state: 'minimized',
   //   })
   // });
 }
@@ -297,6 +289,33 @@ function setBrowserAlarm(alarm) {
 }
 
 
+function getCurrentTabs(callback) {
+  let queryOptions = { active: true, discarded:false };
+  chrome.tabs.query(queryOptions, callback);
+}
+
+function urlRunsScript(url) {
+  return (
+    !url.startsWith("chrome")
+    && url[0] != "/"
+  );
+}
+
+function tabsRunsScript(tabs) {
+  return tabs.map((t) => {
+    console.log("urlRunsScript", urlRunsScript(t.url), t.url);
+    return urlRunsScript(t.url);
+  }).reduce((a, b) => {
+    return a || b;
+  });
+}
+
+chrome.runtime.onStartup.addListener(function() {
+  loadFromStorage(true).then(() => {
+    saveSettings();
+  });
+})
+
 chrome.storage.local.get(storeKey, function (results) {
   if (results[storeKey]) {
     var json = results[storeKey];
@@ -306,6 +325,11 @@ chrome.storage.local.get(storeKey, function (results) {
   setBrowserAlarm(settings.alarm);
 });
 
+
 chrome.alarms.onAlarm.addListener(() => {
-  checkPopup();
+  getCurrentTabs((tabs) => {
+    if (!tabsRunsScript(tabs)) {
+      checkPopup();
+    }
+  });
 });

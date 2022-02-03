@@ -19,11 +19,11 @@ function check_battery(battery, callback=null) {
 	});
 }
 
-// navigator.getBattery().then(function(battery) {
-// 	check_battery(battery);
-// 	battery.addEventListener('levelchange', function () {
-// 		check_battery(battery);
-// 	});
-// }, function() {
-// 	console.log("no battery found");
-// });
+navigator.getBattery().then(function(battery) {
+	check_battery(battery);
+	battery.addEventListener('levelchange', function () {
+		check_battery(battery);
+	});
+}, function() {
+	console.log("no battery found");
+});

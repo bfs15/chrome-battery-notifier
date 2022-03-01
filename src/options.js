@@ -12,18 +12,26 @@ $(function() {
       $alarmPeriod = $('.alarm-period-arg'),
       $save = $('#save');
 
-  var defaultOptions = {
-    enabled: false,
-    trigger: {
-      percent: 15,
-      timeUnit: null,
-      timeAmount: null
-    }
+  var defaultOptions = () => {
+    return {
+      enabled: false,
+      trigger: {
+        percent: 15,
+        timeUnit: null,
+        timeAmount: null
+      }
+    };
   };
+
+  function checkNotifs() {
+    if (!temp.settings.notifications) {
+      temp.settings.notifications = [defaultOptions(), defaultOptions(), defaultOptions()];
+    }
+  }
 
   var temp = {
     settings: {
-      notifications: [defaultOptions, defaultOptions, defaultOptions],
+      notifications: [defaultOptions(), defaultOptions(), defaultOptions()],
       alarm: {
         period: 3
       },
@@ -31,38 +39,32 @@ $(function() {
     index: 0,
     
     getNotification: function(index) {
-      if (!temp.settings.notifications) {
-        temp.settings.notifications = [defaultOptions, defaultOptions, defaultOptions];
-      }
+      checkNotifs()
       if (index < temp.settings.notifications.length) {
         return temp.settings.notifications[index];
       } else {
-        return defaultOptions;
+        return defaultOptions();
       }
     },
     getNotificationCurr: function() {
       index = temp.index;
-      if (!temp.settings.notifications) {
-        temp.settings.notifications = [defaultOptions, defaultOptions, defaultOptions];
-      }
+      checkNotifs()
       if (index < temp.settings.notifications.length) {
         return temp.settings.notifications[index];
       } else {
-        return defaultOptions;
+        return defaultOptions();
       }
     },
     getSettings: function() {
       if (!temp.settings) {
         temp.settings = {
-          notifications: [defaultOptions, defaultOptions, defaultOptions],
+          notifications: [defaultOptions(), defaultOptions(), defaultOptions()],
           alarm: {
             period: 3
           },
         };
       }
-      if (!temp.settings.notifications) {
-        temp.settings.notifications = [defaultOptions, defaultOptions, defaultOptions];
-      }
+      checkNotifs()
       return temp.settings;
     },
     getAllSettings: function () {
@@ -79,12 +81,16 @@ $(function() {
     }
   };
 
+  function setSettings(options) {
+    console.log("> options: setSettings ", options);
+    temp.set(options);
+    updateDom();
+  }
+  
   function loadSettings() {
     console.log("loadSettings");
     chrome.runtime.sendMessage({ type: "getSettings" }, function (response) {
-      console.log("> loadSettings response", response);
-      temp.set(response);
-      updateDom();
+      setSettings(response);
     });
   }
 
@@ -108,7 +114,8 @@ $(function() {
   function saveSettings() {
     temp.setCurrent();
     chrome.runtime.sendMessage({type: "setSettings", settings: temp.getAllSettings()}, function (response) {
-      console.log("Settings saved.");
+      console.log("> options: Settings saved. Response: ", response);
+      setSettings(response);
     });
     $save.prop('disabled', true);
   }

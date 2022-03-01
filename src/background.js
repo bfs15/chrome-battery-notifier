@@ -93,14 +93,16 @@ var Warning = function(options, show=false) {
   options = options || {};
 
   this.enabled = ('enabled' in options) ? options.enabled : true;
-  this.trigger = ('trigger' in options) ? options.trigger : new Trigger(5);
+  this.trigger = ('trigger' in options) ? options.trigger : new Trigger(15);
 
   this.shown = ('shown' in options) ? options.shown : false;
   this.shown = this.shown && !show; // Force not shown if show is true
 };
 
-Warning.fromJsonObject = function(obj, show=false) {
-  obj.trigger = Trigger.fromJsonObject(obj.trigger);
+Warning.fromJsonObject = function (obj, show = false) {
+  if (obj && obj.trigger) {
+    obj.trigger = Trigger.fromJsonObject(obj.trigger);
+  }
   return new Warning(obj, show);
 };
 
@@ -190,6 +192,7 @@ chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
   console.log("request", request);
   if (request.type == "setSettings") {
     setSettings(request.settings, true);
+    sendResponse(settings);
   } else if (request.type == "getSettings") {
     Promise.all([loadFromStorage()]).then(() => {
       sendResponse(settings);
@@ -220,10 +223,12 @@ chrome.runtime.onMessage.addListener(function (request, sender, sendResponse) {
 const storeKey = "settings";
 var settings = {
   notifications: [
-    new Warning({})
+    new Warning({}),
+    new Warning({'enabled': false}),
+    new Warning({'enabled': false}),
   ],
   alarm: {
-    period: 3,
+    period: 5,
   }
 };
 
@@ -272,19 +277,16 @@ function checkPopup() {
   });
 }
 
-// chrome.alarms.create({ periodInMinutes: 1 });
-
 function setBrowserAlarm(alarm) {
   chrome.alarms.clear('periodic', cleared => {
-    console.log("Alarm: cleared.");
-    chrome.alarms.get('periodic', a => {
-      console.log("previous alarm", a);
-      if (!a) {
-        console.log("Alarm: create", alarm);
-        chrome.alarms.create('periodic', { periodInMinutes: alarm.period })
-      };
-    });
-
+    console.log("Alarm: create", alarm);
+    chrome.alarms.create('periodic', { periodInMinutes: alarm.period })
+    // chrome.alarms.get('periodic', a => {
+    //   console.log("previous alarm", a);
+    //   if (!a) {
+    //     // create
+    //   };
+    // });
   });
 }
 
